@@ -7,39 +7,61 @@
 
 import UIKit
 
-class BucketListViewController: UITableViewController ,  AddItemTableViewControllerDelegate {
- 
-    
+
+
+class BucketListViewController: UITableViewController  ,  AddItemTableViewControllerDelegate
+{
+
+    var itemsApi : [Task]?
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+      //  tableView.delegate = self
+        
+        TaskModel.getAllTasks { data, response, error in
+            do{
+                self.itemsApi = try JSONDecoder().decode([Task].self, from: data!)
+                           DispatchQueue.main.async {
+                               self.tableView.reloadData()
+                           }
+                       }catch{
+                           print(error)
+                       }
+                   }
+        tableView.dataSource = self
+        }
+        
     func addItemTableViewControllerDelegate(_ controller: AddItemViewController, didFinishAddingItem item: String , at indexPath : NSIndexPath?) {
         if let ip = indexPath {
-            items[ip.row] = item
+            
+            guard var itema = itemsApi?[ip.row] else {return}
+            itema.objective = item
+            
+            updateTask(object: item, id: itema.id )
+            
         }else {
-            items.append(item)
-        }
+        addTask(item)
+           // items.append(item)
+       }
         dismiss(animated: true, completion: nil)
               
-               tableView.reloadData()
+              tableView.reloadData()
      
     }
     
     func addItemTableViewControllerDelegate(_ controller: AddItemViewController, didPressCancelButton button: UIBarButtonItem) {
-        
         dismiss(animated: true, completion: nil)
         
     }
-    
-   
-    
-    var items = ["Sky diving", "Live in Hawaii"]
-    
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return items.count
+        return itemsApi?.count ?? 0
     }
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
       
         let cell = tableView.dequeueReusableCell(withIdentifier: "MyCell", for: indexPath)
 
-        cell.textLabel?.text = items[indexPath.row]
+        cell.textLabel?.text = itemsApi?[indexPath.row].objective
        
         return cell
     }
@@ -48,12 +70,21 @@ class BucketListViewController: UITableViewController ,  AddItemTableViewControl
     override func tableView(_ tableView: UITableView, accessoryButtonTappedForRowWith indexPath: IndexPath) {
         performSegue(withIdentifier: "edit", sender: indexPath)
     }
-    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
-        items.remove(at: indexPath.row)
-        tableView.reloadData()
-    }
     
- 
+    override func tableView(_ tableView: UITableView, commit editingStyle: UITableViewCell.EditingStyle, forRowAt indexPath: IndexPath) {
+        TaskModel.deleteTask(index: itemsApi?[indexPath.row].id ?? 0) { data, response, error in
+            do{
+                self.itemsApi = try JSONDecoder().decode([Task].self, from: data!)
+                           DispatchQueue.main.async {
+                               self.tableView.reloadData()
+                           }
+                       }catch{
+                           print(error)
+                       }
+        }
+        tableView.dataSource = self
+    }
+
     override func prepare(for segue: UIStoryboardSegue, sender: Any?) {
         
          //  if segue.identifier == "AddNewMission"
@@ -69,21 +100,56 @@ class BucketListViewController: UITableViewController ,  AddItemTableViewControl
                
                let navigationController = segue.destination as! UINavigationController
                let controller = navigationController.topViewController as! AddItemViewController
-            controller.delegate = self
+               controller.delegate = self
                let indexpath = sender as! NSIndexPath
-               let item = items[indexpath.row]
-               controller.item = item
+               let item = itemsApi?[indexpath.row]
+               controller.item = item?.objective
                controller.indexpath = indexpath
                
            }
       }
+    
+    func addTask(_ text : String) {
+        
+        TaskModel.addTasks(objective: text) { data, response, error in
+            print("in here get")
+                       
+                       // see: Swift nil coalescing operator (double questionmark)
+                       print(data ?? "no data get") // the "no data" is a default value to use if data is nil
+                       
+                       guard let myData = data else { return }
+            do{
+                self.itemsApi = try JSONDecoder().decode([Task].self, from: myData)
+                           DispatchQueue.main.async {
+                               self.tableView.reloadData()
+                           }
+                       }catch{
+                           print(error)
+                       }
+                   
+        }
+        tableView.dataSource = self
 
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        // Do any additional setup after loading the view.
     }
-
-
+    
+    func updateTask(object : String , id : Int){
+        TaskModel.updateTask(index: id, objective: object) { data, response, error in
+            guard let myData = data else { return }
+            do{
+                self.itemsApi = try JSONDecoder().decode([Task].self, from: myData)
+                           DispatchQueue.main.async {
+                               self.tableView.reloadData()
+                           }
+                       }catch{
+                           print(error)
+                       }
+        }
+        tableView.dataSource = self
+        
+    }
 }
+
+    
+    
+
 
